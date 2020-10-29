@@ -13,6 +13,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <fc/exception/exception.hpp>
+#include <vector>
 
 #include <pqxx/tablewriter>
 
@@ -86,6 +87,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     uint32_t                                             first           = 0;
     uint32_t                                             first_bulk      = 0;
     std::map<std::string, std::unique_ptr<table_stream>> table_streams;
+    std::vector<std::string>                             token_codes;
 
     fpg_session(fill_postgresql_plugin_impl* my)
         : my(my)
@@ -119,6 +121,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     bool received(get_status_result_v0& status) override {
         pqxx::work t(*sql_connection);
         load_fill_status(t);
+        load_token_accounts(t);
         auto           positions = get_positions(t);
         pqxx::pipeline pipeline(t);
         truncate(t, pipeline, head + 1);
@@ -226,15 +229,23 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         t.exec("create unique index on " + t.quote_name(config->schema) + R"(.fill_status ((true)))");
         t.exec("insert into " + t.quote_name(config->schema) + R"(.fill_status values (0, '', 0, '', 0))");
 
+        t.exec(
+            "create table " + t.quote_name(config->schema) +
+            R"(.token_accounts ("code" varchar(13)))");
+        t.exec("create unique index on " + t.quote_name(config->schema) + R"(.token_accounts ((true)))");
+
         // clang-format off
         create_table<permission_level>(         t, "action_trace_authorization",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_auth_sequence>(    t, "action_trace_auth_sequence",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<account_delta>(            t, "action_trace_ram_delta",      "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<action_trace_v0>(          t, "action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         create_table<transaction_trace_v0>(     t, "transaction_trace",           "block_num, transaction_ordinal",                     "block_num bigint, transaction_ordinal integer, failed_dtrx_trace varchar(64)", "partial_signatures varchar[], partial_context_free_data bytea[]");
+        create_table<action_trace_v0>(          t, "token_action_trace",                "block_num, transaction_id, action_ordinal",          "block_num bigint, transaction_id varchar(64),                                          transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
         // clang-format on
 
         for (auto& table : connection->abi.tables) {
+            if (table.type == "global_property")
+                continue;
             auto& variant_type = get_type(table.type);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
                 throw std::runtime_error("don't know how to proccess " + variant_type.name);
@@ -263,8 +274,6 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 "action_mroot" varchar(64),
                 "schedule_version" bigint,
                 "new_producers_version" bigint,
-                "new_producers" )" +
-            t.quote_name(config->schema) + R"(.producer_key[],
                 primary key("block_num")))");
 
         t.commit();
@@ -276,6 +285,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         pqxx::work t(*sql_connection);
         ilog("create_trim");
         for (auto& table : connection->abi.tables) {
+            if (table.type == "global_property")
+                continue;
             if (table.key_names.empty())
                 continue;
             std::string query = "create index if not exists " + table.type;
@@ -354,6 +365,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         };
 
         for (auto& table : connection->abi.tables) {
+            if (table.type == "global_property")
+                continue;
             if (table.key_names.empty()) {
                 query += R"(
                     for key_search in
@@ -407,6 +420,13 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first           = r[4].as<uint32_t>();
     }
 
+    void load_token_accounts(pqxx::work& t) {
+        auto rows = t.exec("select code from " + t.quote_name(config->schema) + ".token_accounts");
+        for (auto row : rows){
+            token_codes.push_back(row[0].as<std::string>());
+        }
+    }
+
     std::vector<block_position> get_positions(pqxx::work& t) {
         std::vector<block_position> result;
         auto                        rows = t.exec(
@@ -440,8 +460,11 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         trunc("action_trace");
         trunc("transaction_trace");
         trunc("block_info");
-        for (auto& table : connection->abi.tables)
+        for (auto& table : connection->abi.tables){
+            if (table.type == "global_property")
+                continue;
             trunc(table.type);
+	}
 
         auto result = pipeline.retrieve(pipeline.insert(
             "select block_id from " + t.quote_name(config->schema) + ".received_block where block_num=" + std::to_string(block - 1)));
@@ -455,6 +478,20 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first = std::min(first, head);
     } // truncate
 
+    std::vector<std::string> split_word (std::string s, std::string delimiter) {
+        size_t pos_start = 0, pos_end, delim_len = delimiter.length();
+        std::string token;
+        std::vector<std::string> res;
+
+        while ((pos_end = s.find (delimiter, pos_start)) != std::string::npos) {
+            token = s.substr (pos_start, pos_end - pos_start);
+            pos_start = pos_end + delim_len;
+            res.push_back (token);
+        }
+
+        res.push_back (s.substr (pos_start));
+        return res;
+    }
     bool received(get_blocks_result_v0& result) override {
         if (!result.this_block)
             return true;
@@ -655,7 +692,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         bin_to_native(block, bin);
 
         std::string fields = "block_num, block_id, timestamp, producer, confirmed, previous, transaction_mroot, action_mroot, "
-                             "schedule_version, new_producers_version, new_producers";
+                             "schedule_version, new_producers_version";
         std::string values = sql_str(bulk, block_num) + sep(bulk) +                                 //
                              sql_str(bulk, block_id) + sep(bulk) +                                  //
                              sql_str(bulk, block.timestamp) + sep(bulk) +                           //
@@ -667,7 +704,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                              sql_str(bulk, block.schedule_version) + sep(bulk) +                    //
                              sql_str(bulk, block.new_producers ? block.new_producers->version : 0); //
 
-        if (block.new_producers) {
+        /*
+	if (block.new_producers) {
             values += sep(bulk) + begin_array(bulk);
             for (auto& x : block.new_producers->producers) {
                 if (&x != &block.new_producers->producers[0])
@@ -679,6 +717,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         } else {
             values += sep(bulk) + null_value(bulk);
         }
+	*/
 
         write(block_num, t, pipeline, bulk, "block_info", fields, values);
     } // receive_block
@@ -690,6 +729,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             check_variant(bin, get_type("table_delta"), "table_delta_v0");
             table_delta_v0 table_delta;
             bin_to_native(table_delta, bin);
+            
+	    if (table_delta.name == "global_property")
+                continue;
 
             auto& variant_type = get_type(table_delta.name);
             if (!variant_type.filled_variant || variant_type.fields.size() != 1 || !variant_type.fields[0].type->filled_struct)
@@ -708,6 +750,16 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                 for (auto& field : type.fields)
                     fill_value(bulk, false, t, "", fields, values, row.data, field);
                 write(block_num, t, pipeline, bulk, table_delta.name, fields, values);
+
+                if(table_delta.name == "contract_table" && std::string::npos != values.find("stat")){
+                    std::vector<std::string> talbe_values = split_word (values, "\t");
+                    if(talbe_values.size() == 6 && std::find(token_codes.begin(), token_codes.end(), talbe_values[2]) == token_codes.end()){
+                        token_codes.push_back(talbe_values[2]);
+                        std::string table_value = "'" + talbe_values[2] + "'";
+                        write(block_num, t, pipeline, false, "token_accounts", "code", table_value);
+                    }
+                }
+
                 ++num_processed;
             }
             numRows += table_delta.rows.size();
@@ -774,6 +826,9 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
             std::to_string(block_num) + sep(bulk) + quote(bulk, (std::string)ttrace.id) + sep(bulk) + quote(bulk, to_string(ttrace.status));
 
         write("action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
+        if (std::find(token_codes.begin(), token_codes.end(),std::string(atrace.act.account))!=token_codes.end()){
+            write("token_action_trace", block_num, atrace, fields, values, bulk, t, pipeline);
+        }
         write_action_trace_subtable(
             "action_trace_authorization", block_num, ttrace, atrace.action_ordinal.value, atrace.act.authorization, bulk, t, pipeline);
         if (atrace.receipt)
@@ -941,3 +996,4 @@ void fill_pg_plugin::plugin_shutdown() {
     my->timer.cancel();
     ilog("fill_pg_plugin stopped");
 }
+
