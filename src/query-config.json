@@ -831,7 +831,24 @@
             "trim_index": "resource_limits_config_block_prese_idx",
             "keys": [],
             "fields": []
-        }
+        },
+        {
+            "name": "token_account",
+            "short_name": "token.account",
+            "is_delta": true,
+            "trim_index": "token_account_name_idx",
+            "keys": [
+                {
+                    "name": "code"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "code",
+                    "type": "name"
+                }
+            ]
+        }        
     ],
     "indexes": [
         {
@@ -1246,6 +1263,35 @@
             "include_in_pg": false,
             "only_for_trim": true,
             "sort_keys": []
+        },
+        {
+            "short_name": "token.account",
+            "index": "token_account_name_idx",
+            "table": "token_account",
+            "sort_keys": [
+                {
+                    "name": "code"
+                }
+            ]
+        },
+        {
+            "short_name": "tok.ac.trace",
+            "index": "at_range_name_action_token_account_block_trans_action_idx",
+            "table": "token_action_trace",
+            "sort_keys": [
+                {
+                    "name": "act_account"
+                },
+                {
+                    "name": "block_num"
+                },
+                {
+                    "name": "transaction_id"
+                },
+                {
+                    "name": "action_ordinal"
+                }
+            ]
         }
     ],
     "queries": [
@@ -1457,6 +1503,20 @@
                     "join_new_name": "row_value"
                 }
             ]
+        },
+        {
+            "short_name": "token.account",
+            "index": "token_account_name_idx",
+            "function": "token_account_range_name",
+            "table": "token_account",
+            "max_results": 100
+        },
+        {
+            "short_name": "tok.ac.trace",
+            "index": "at_range_name_action_token_account_block_trans_action_idx",
+            "function": "at_range_name_action_token_account_block_trans_action",
+            "table": "token_action_trace",
+            "max_results": 100
         }
     ]
 }

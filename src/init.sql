@@ -79,7 +79,17 @@
             "present" desc
         );
 
+        create index if not exists token_account_name_idx on chain.token_account(
+            "code"
+        );
 
+        create index if not exists at_range_name_action_token_account_block_trans_action_idx on chain.token_action_trace(
+            "act_account",
+            "receiver",
+            "block_num",
+            "transaction_id",
+            "action_ordinal"
+        );
         drop function if exists chain.block_info_range_index;
         create function chain.block_info_range_index(
             
@@ -2150,3 +2160,67 @@
             end 
         $$ language plpgsql;
     
+        drop function if exists chain.token_account_range_name;
+        create function chain.token_account_range_name(
+            
+            first_name varchar(13),
+            last_name varchar(13),
+            max_results integer
+        ) returns setof chain.token_account
+        as $$
+            declare
+                search record;
+            begin
+                
+                for search in
+                    select
+                        *
+                    from
+                        chain.token_account
+                    where
+                        (token_account."code") >= ("first_name")
+                        
+                    order by
+                        "code"
+                    limit max_results
+                loop
+                    if (search."code") > ("last_name") then
+                        return;
+                    end if;
+                    return next search;
+                end loop;
+            end 
+        $$ language plpgsql;
+    
+        drop function if exists chain.at_range_name_action_token_account_block_trans_action;
+        create function chain.at_range_name_action_token_account_block_trans_action(
+            token_act_account varchar(13),
+            from_pos integer,
+            max_results integer
+        ) returns setof chain.token_action_trace
+        as $$
+            declare
+                arg_act_account varchar(13) = "token_act_account";
+                search record;
+            begin
+                
+                for search in
+                    select
+                        *
+                    from
+                        chain.token_action_trace
+                    where
+                        ("act_account") = ("arg_act_account")
+                    order by
+                        "act_account",
+                        (CASE WHEN from_pos>=0 THEN "block_num" END)  asc, "block_num" desc,
+                        (CASE WHEN from_pos>=0 THEN "transaction_id" END)  asc, "transaction_id" desc,
+                        (CASE WHEN from_pos>=0 THEN "action_ordinal" END)  asc, "action_ordinal" desc
+                    offset CASE WHEN from_pos>=0 THEN from_pos ELSE -1 * from_pos END
+                    limit max_results
+                loop
+                    return next search;
+                end loop;
+            end 
+        $$ language plpgsql;
+        

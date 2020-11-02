@@ -399,6 +399,42 @@ inline bool increment_key(query_action_trace_range_name_receiver_account_block_t
            increment_key(key.name);
 }
 
+struct query_action_trace_range_token_name_action_account_block_trans_action {
+    struct key {
+        eosio::name name           = {};
+        eosio::name receiver       = {};
+        eosio::name account        = {};
+        uint32_t    block_num      = {};
+        checksum256 transaction_id = {};
+        uint32_t    action_ordinal = {};
+
+        // Extract the key from `data`
+        static key from_data(const action_trace& data) {
+            return {
+                .name           = data.action.name,
+                .receiver       = data.receiver,
+                .account        = data.action.account,
+                .block_num      = data.block_num,
+                .transaction_id = data.transaction_id,
+                .action_ordinal = data.action_ordinal,
+            };
+        }
+    };
+
+    /// Identifies query type. Do not modify this field.
+    name query_name = "tok.ac.trace"_n;
+
+    /// Query records by token account .
+    name token_account = {};
+
+    /// Query records from position
+    uint32_t from_pos = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
+    uint32_t max_results = {};
+};
+
+
 /// Pass this to `query_database` to get `action_trace` for a range of `receipt_receiver` names.
 /// The query results are sorted by `key`.  Every record has a unique key.
 /// ```c++
@@ -510,6 +546,25 @@ inline bool increment_key(query_transaction_receipt::key& key) {
 struct query_account_range_name {
     /// Identifies query type. Do not modify this field.
     name query_name = "account"_n;
+
+    /// Look at this point of time in history
+    uint32_t snapshot_block = {};
+
+    /// Query records with `name` in the range [`first`, `last`].
+    name first = {};
+
+    /// Query records with `name` in the range [`first`, `last`].
+    name last = {};
+
+    /// Maximum results to return. The wasm-ql server may cap the number of results to a smaller number.
+    uint32_t max_results = {};
+};
+
+/// Pass this to `query_database` to get `account` for a range of names.
+/// The query results are sorted by `name`. Every record has a different name.
+struct query_token_account_range_name {
+    /// Identifies query type. Do not modify this field.
+    name query_name = "token.account"_n;
 
     /// Look at this point of time in history
     uint32_t snapshot_block = {};

@@ -695,6 +695,43 @@ void get_abi(std::string_view request, const eosio::database_status& /*status*/)
     });
     eosio::set_output_data(result);
 }
+
+void get_token_accounts(std::string_view request, const eosio::database_status& /*status*/) {
+    // auto params = eosio::parse_json<get_account_params>(request);
+
+    auto s = query_database(eosio::query_token_account_range_name{
+        .snapshot_block = std::numeric_limits<uint32_t>::max(),
+        .first          = params.account_name,
+        .last           = params.account_name,
+        .max_results    = 1,
+    });
+
+    std::string result;
+    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
+        result += to_json(r).sv();
+        return true;
+    });
+    eosio::set_output_data(result);
+}
+
+
+void get_token_actions(std::string_view request, const eosio::database_status& /*status*/) {
+    auto params = eosio::parse_json<get_actions_params>(request);
+    auto s      = query_database(eosio::query_action_trace_range_token_name_action_account_block_trans_action{
+        .token_account = params.account_name,
+        .from_pos = uint32_t(params.pos),
+        .max_results = uint32_t(params.offset),
+    });
+
+    std::vector<eosio::action_trace> actions;
+    std::string                      result;
+    eosio::for_each_query_result<eosio::action_trace>(s, [&](eosio::action_trace& r) {
+        actions.emplace_back(r);
+        return true;
+    });
+    result += eosio::to_json(actions).sv();
+    eosio::set_output_data(result);
+}
 struct request_data {
     eosio::shared_memory<std::string_view> target  = {};
     eosio::shared_memory<std::string_view> request = {};
@@ -723,6 +760,8 @@ extern "C" void run_query() {
         get_producer_schedule(*request.request, status);
     else if (*request.target == "/v1/chain/get_currency_balance")
         get_currency_balance(*request.request, status);
+    else if (*request.target == "/v1/chain/get_token_accounts")
+        get_token_accounts(*request.request, status);        
     else
         eosio::check(false, "not found");
 }
