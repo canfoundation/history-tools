@@ -715,7 +715,7 @@ void get_token_accounts(std::string_view request, const eosio::database_status& 
     auto s = query_database(eosio::query_token_account_range_name{
         .first          = params.first_account_name,
         .last           = params.last_account_name,
-        .max_results    = params.limit,
+        .max_results    = uint32_t(params.limit),
     });
 
     std::string result;
