@@ -566,9 +566,6 @@ struct query_token_account_range_name {
     /// Identifies query type. Do not modify this field.
     name query_name = "token.account"_n;
 
-    /// Look at this point of time in history
-    uint32_t snapshot_block = {};
-
     /// Query records with `name` in the range [`first`, `last`].
     name first = {};
 

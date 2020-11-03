@@ -700,7 +700,6 @@ void get_token_accounts(std::string_view request, const eosio::database_status& 
     // auto params = eosio::parse_json<get_account_params>(request);
 
     auto s = query_database(eosio::query_token_account_range_name{
-        .snapshot_block = std::numeric_limits<uint32_t>::max(),
         .first          = params.account_name,
         .last           = params.account_name,
         .max_results    = 1,
@@ -761,7 +760,9 @@ extern "C" void run_query() {
     else if (*request.target == "/v1/chain/get_currency_balance")
         get_currency_balance(*request.request, status);
     else if (*request.target == "/v1/chain/get_token_accounts")
-        get_token_accounts(*request.request, status);        
+        get_token_accounts(*request.request, status);
+    else if (*request.target == "/v1/chain/get_token_actions")
+        get_token_accounts(*request.request, status);      
     else
         eosio::check(false, "not found");
 }
