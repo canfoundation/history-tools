@@ -834,7 +834,7 @@
         },
         {
             "name": "token_account",
-            "short_name": "token.account",
+            "short_name": "tok.account",
             "is_delta": true,
             "trim_index": "token_account_name_idx",
             "keys": [
@@ -1265,7 +1265,7 @@
             "sort_keys": []
         },
         {
-            "short_name": "token.account",
+            "short_name": "tok.account",
             "index": "token_account_name_idx",
             "table": "token_account",
             "sort_keys": [
@@ -1505,7 +1505,7 @@
             ]
         },
         {
-            "short_name": "token.account",
+            "short_name": "tok.account",
             "index": "token_account_name_idx",
             "function": "token_account_range_name",
             "table": "token_account",

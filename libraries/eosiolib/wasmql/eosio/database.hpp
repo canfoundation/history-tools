@@ -564,7 +564,7 @@ struct query_account_range_name {
 /// The query results are sorted by `name`. Every record has a different name.
 struct query_token_account_range_name {
     /// Identifies query type. Do not modify this field.
-    name query_name = "token.account"_n;
+    name query_name = "tok.account"_n;
 
     /// Query records with `name` in the range [`first`, `last`].
     name first = {};
