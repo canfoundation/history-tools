@@ -231,8 +231,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
         t.exec(
             "create table " + t.quote_name(config->schema) +
-            R"(.token_account ("code" varchar(13) not null))");
-        t.exec("create unique index on " + t.quote_name(config->schema) + R"(.token_account ((true)))");
+            R"(.token_account ("code" varchar(13) not null, primary key("code")))");
 
         // clang-format off
         create_table<permission_level>(         t, "action_trace_authorization",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");

@@ -186,13 +186,13 @@ struct get_account_params {
 STRUCT_REFLECT(get_account_params) { STRUCT_MEMBER(get_account_params, account_name); }
 
 struct get_account_rank {
-    eosio::name first_account_name = {};
-    eosio::name last_account_name = {};
+    eosio::name lower_bound = {};
+    eosio::name upper_bound = {};
     int limit   = {};
 };
 STRUCT_REFLECT(get_account_rank) { 
-    STRUCT_MEMBER(get_account_rank, first_account_name); 
-    STRUCT_MEMBER(get_account_rank, last_account_name); 
+    STRUCT_MEMBER(get_account_rank, lower_bound); 
+    STRUCT_MEMBER(get_account_rank, upper_bound); 
     STRUCT_MEMBER(get_account_rank, limit); 
     }
 
@@ -602,6 +602,7 @@ void get_transaction(std::string_view request, const eosio::database_status& /*s
 
 void get_actions(std::string_view request, const eosio::database_status& /*status*/) {
     auto params = eosio::parse_json<get_actions_params>(request);
+    
     auto s      = query_database(eosio::query_action_trace_receipt_receiver{
         .snapshot_block = std::numeric_limits<uint32_t>::max(),
         .first =
@@ -618,6 +619,7 @@ void get_actions(std::string_view request, const eosio::database_status& /*statu
                 .transaction_id   = eosio::checksum256_max(),
                 .action_ordinal   = std::numeric_limits<uint32_t>::max(),
             },
+        .from_position  = int32_t(params.pos),
         .max_results = uint32_t(std::abs(params.offset)),
     });
 
@@ -713,16 +715,18 @@ void get_token_accounts(std::string_view request, const eosio::database_status& 
     auto params = eosio::parse_json<get_account_rank>(request);
 
     auto s = query_database(eosio::query_token_account_range_name{
-        .first          = params.first_account_name,
-        .last           = params.last_account_name,
+        .first          = params.lower_bound,
+        .last           = params.upper_bound,
         .max_results    = uint32_t(params.limit),
     });
 
+    std::vector<eosio::token_account> token_accounts;
     std::string result;
-    eosio::for_each_query_result<eosio::account>(s, [&](eosio::account& r) {
-        result += to_json(r).sv();
+    eosio::for_each_query_result<eosio::token_account>(s, [&](eosio::token_account& r) {
+        token_accounts.emplace_back(r);
         return true;
     });
+    result += eosio::to_json(token_accounts).sv();
     eosio::set_output_data(result);
 }
 
@@ -730,10 +734,13 @@ void get_token_accounts(std::string_view request, const eosio::database_status& 
 void get_token_actions(std::string_view request, const eosio::database_status& /*status*/) {
     
     auto params = eosio::parse_json<get_actions_params>(request);
-    auto s      = query_database(eosio::query_action_trace_range_token_name_action_account_block_trans_action{
-        .token_account = params.account_name,
-        .from_pos = uint32_t(params.pos),
-        .max_results = uint32_t(params.offset),
+
+    auto s      = query_database(eosio::query_token_account_actions{
+        .snapshot_block = std::numeric_limits<uint32_t>::max(),
+        .first          = params.account_name,
+        .last           = params.account_name,
+        .from_position  = int32_t(params.pos),
+        .max_results    = uint32_t(std::abs(params.offset)),
     });
 
     std::vector<eosio::action_trace> actions;
@@ -773,10 +780,10 @@ extern "C" void run_query() {
         get_producer_schedule(*request.request, status);
     else if (*request.target == "/v1/chain/get_currency_balance")
         get_currency_balance(*request.request, status);
-    else if (*request.target == "/v1/chain/get_token_accounts")
+    else if (*request.target == "/v1/history/get_token_accounts")
         get_token_accounts(*request.request, status);
-    else if (*request.target == "/v1/chain/get_token_actions")
-        get_token_accounts(*request.request, status);      
+    else if (*request.target == "/v1/history/get_token_actions")
+        get_token_actions(*request.request, status);      
     else
         eosio::check(false, "not found");
 }

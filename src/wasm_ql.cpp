@@ -38,8 +38,10 @@ struct callbacks {
 
     void eosio_assert_message(bool test, const char* msg, size_t msg_len) {
         // todo: pass assert message through RPC API
-        if (!test)
-            throw std::runtime_error("assert failed");
+        if (!test){
+            std::string message( msg, msg_len );
+            throw std::runtime_error(message);
+        }
     }
 
     void get_database_status(uint32_t cb_alloc_data, uint32_t cb_alloc) {

@@ -67,6 +67,7 @@ struct pg_query_session : query_session {
             query_str += pg::sql_str(false, snapshot_block_num);
             need_sep = true;
         }
+
         auto add_args = [&](auto& args) {
             for (auto& arg : args) {
                 if (need_sep)
@@ -78,6 +79,14 @@ struct pg_query_session : query_session {
         add_args(query.arg_types);
         add_args(query.index_obj->range_types);
         add_args(query.index_obj->range_types);
+
+        if (query.has_position_index) {
+            int32_t from_position = 0;
+            from_position = abieos::bin_to_native<int32_t>(query_bin);
+            query_str += pg::sep(false) + pg::sql_str(false, from_position);
+            need_sep = true;
+        }
+        
         auto max_results = abieos::read_raw<uint32_t>(query_bin);
         query_str += pg::sep(false) + pg::sql_str(false, std::min(max_results, query.max_results));
         query_str += ")";
