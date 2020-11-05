@@ -95,6 +95,7 @@ struct query {
     std::string                       function              = {};
     std::string                       table                 = {};
     bool                              has_block_snapshot    = {};
+    bool                              has_position_index    = {};
     uint32_t                          max_results           = {};
     std::string                       join                  = {};
     abieos::name                      join_query_short_name = {};
@@ -115,6 +116,7 @@ constexpr void for_each_field(query<Defs>*, F f) {
     ABIEOS_MEMBER(query<Defs>, function);
     ABIEOS_MEMBER(query<Defs>, table);
     ABIEOS_MEMBER(query<Defs>, has_block_snapshot);
+    ABIEOS_MEMBER(query<Defs>, has_position_index);
     ABIEOS_MEMBER(query<Defs>, max_results);
     ABIEOS_MEMBER(query<Defs>, join);
     ABIEOS_MEMBER(query<Defs>, join_query_short_name);

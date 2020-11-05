@@ -831,6 +831,120 @@
             "trim_index": "resource_limits_config_block_prese_idx",
             "keys": [],
             "fields": []
+        },
+        {
+            "name": "token_account",
+            "short_name": "tok.account",
+            "is_delta": true,
+            "trim_index": "token_account_name_idx",
+            "keys": [
+                {
+                    "name": "code"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "code",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "token_action_trace",
+            "short_name": "token.action",
+            "keys": [
+                {
+                    "name": "act_account"
+                }
+            ],
+            "fields": [
+                {
+                    "name": "block_num",
+                    "type": "uint32"
+                },
+                {
+                    "name": "transaction_id",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "transaction_status",
+                    "type": "transaction_status"
+                },
+                {
+                    "name": "action_ordinal",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "creator_action_ordinal",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "receipt_present",
+                    "type": "bool",
+                    "begin_optional": true
+                },
+                {
+                    "name": "receipt_receiver",
+                    "type": "name"
+                },
+                {
+                    "name": "receipt_act_digest",
+                    "type": "checksum256"
+                },
+                {
+                    "name": "receipt_global_sequence",
+                    "type": "uint64"
+                },
+                {
+                    "name": "receipt_recv_sequence",
+                    "type": "uint64"
+                },
+                {
+                    "name": "receipt_code_sequence",
+                    "type": "varuint32"
+                },
+                {
+                    "name": "receipt_abi_sequence",
+                    "type": "varuint32",
+                    "end_optional": true
+                },
+                {
+                    "name": "receiver",
+                    "type": "name"
+                },
+                {
+                    "name": "act_account",
+                    "type": "name"
+                },
+                {
+                    "name": "act_name",
+                    "type": "name"
+                },
+                {
+                    "name": "act_data",
+                    "type": "bytes"
+                },
+                {
+                    "name": "context_free",
+                    "type": "bool"
+                },
+                {
+                    "name": "elapsed",
+                    "type": "int64"
+                },
+                {
+                    "name": "console",
+                    "type": "string"
+                },
+                {
+                    "name": "except",
+                    "type": "string"
+                },
+                {
+                    "name": "error_code",
+                    "type": "uint64"
+                }
+            ]
         }
     ],
     "indexes": [
@@ -1246,6 +1360,26 @@
             "include_in_pg": false,
             "only_for_trim": true,
             "sort_keys": []
+        },
+        {
+            "short_name": "tok.account",
+            "index": "token_account_name_idx",
+            "table": "token_account",
+            "sort_keys": [
+                {
+                    "name": "code"
+                }
+            ]
+        },
+        {
+            "short_name": "token.action",
+            "index": "at_range_name_action_token_account_block_trans_action_idx",
+            "table": "token_action_trace",
+            "sort_keys": [
+                {
+                    "name": "act_account"
+                }
+            ]
         }
     ],
     "queries": [
@@ -1270,7 +1404,8 @@
             "function": "receipt_receiver",
             "table": "action_trace",
             "max_results": 100,
-            "has_block_snapshot": true
+            "has_block_snapshot": true,
+            "has_position_index": true
         },
         {
             "short_name": "transaction",
@@ -1457,6 +1592,22 @@
                     "join_new_name": "row_value"
                 }
             ]
+        },
+        {
+            "short_name": "tok.account",
+            "index": "token_account_name_idx",
+            "function": "token_account_range_name",
+            "table": "token_account",
+            "max_results": 100
+        },
+        {
+            "short_name": "token.action",
+            "index": "at_range_name_action_token_account_block_trans_action_idx",
+            "function": "at_range_name_action_token_account_block_trans_action",
+            "table": "token_action_trace",
+            "max_results": 100,
+            "has_block_snapshot": true,
+            "has_position_index": true
         }
     ]
 }

@@ -214,6 +214,8 @@ void handle_request(
             if (req.method() != http::verb::post)
                 return send(error(http::status::bad_request, "Unsupported HTTP-method for " + req.target().to_string() + "\n"));
             auto thread_state = state_cache->get_state();
+            std::string s(req.body().begin(), req.body().end());
+            ilog("query : ${a} : ${b}", ("a", req.target().to_string()) ("b", s));
             send(ok(legacy_query(*thread_state, req.target().to_string(), req.body()), "application/octet-stream"));
             state_cache->store_state(std::move(thread_state));
             return;

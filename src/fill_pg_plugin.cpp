@@ -121,7 +121,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
     bool received(get_status_result_v0& status) override {
         pqxx::work t(*sql_connection);
         load_fill_status(t);
-        load_token_accounts(t);
+        load_token_account(t);
         auto           positions = get_positions(t);
         pqxx::pipeline pipeline(t);
         truncate(t, pipeline, head + 1);
@@ -231,8 +231,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
 
         t.exec(
             "create table " + t.quote_name(config->schema) +
-            R"(.token_accounts ("code" varchar(13)))");
-        t.exec("create unique index on " + t.quote_name(config->schema) + R"(.token_accounts ((true)))");
+            R"(.token_account ("code" varchar(13) not null, primary key("code")))");
 
         // clang-format off
         create_table<permission_level>(         t, "action_trace_authorization",  "block_num, transaction_id, action_ordinal, ordinal", "block_num bigint, transaction_id varchar(64), action_ordinal integer, ordinal integer, transaction_status " + t.quote_name(config->schema) + ".transaction_status_type");
@@ -420,8 +419,8 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
         first           = r[4].as<uint32_t>();
     }
 
-    void load_token_accounts(pqxx::work& t) {
-        auto rows = t.exec("select code from " + t.quote_name(config->schema) + ".token_accounts");
+    void load_token_account(pqxx::work& t) {
+        auto rows = t.exec("select code from " + t.quote_name(config->schema) + ".token_account");
         for (auto row : rows){
             token_codes.push_back(row[0].as<std::string>());
         }
@@ -756,7 +755,7 @@ struct fpg_session : connection_callbacks, std::enable_shared_from_this<fpg_sess
                     if(talbe_values.size() == 6 && std::find(token_codes.begin(), token_codes.end(), talbe_values[2]) == token_codes.end()){
                         token_codes.push_back(talbe_values[2]);
                         std::string table_value = "'" + talbe_values[2] + "'";
-                        write(block_num, t, pipeline, false, "token_accounts", "code", table_value);
+                        write(block_num, t, pipeline, false, "token_account", "code", table_value);
                     }
                 }
 
